@@ -1,0 +1,267 @@
+#!/bin/bash
+
+version="0.1"
+source ./settings.sh
+
+# Commands:
+# - ./jsrkube.sh build
+# - ./jskube.sh build pod
+# - ./jskube.sh build builder
+# - ./jskube.sh run builder
+# - ./jskube.sh stop builder
+# - ./jskube.sh clean
+
+
+function display_header {
+echo "jsrkube v"$version
+  echo
+}
+
+function display_usage {
+  echo "Description"
+  echo "  This script is used to generate JSREPORT docker containers used within"
+  echo "  a Kubernetes cluster"
+  echo ""
+  echo "Configuration"
+  echo "  This script must be directed at the project (git repository) that"
+  echo "  stores your spefic reporting configuration.  This repository is used"
+  echo "  to store all of your projects specific reporting templates.  Update"
+  echo "  file 'settings.sh' and assign variable 'TARGET' with the path to your"
+  echo "  project's 'jsreport-home' directory"
+  echo ""
+  echo "Usage"
+
+  display_help_build 0
+  display_help_run 0
+  display_help_stop 0
+  display_help_clean 0
+
+  echo
+}
+
+function display_help_build {
+
+  if [ $1 -eq 1 ]; then
+    echo "The 'build' command accepts the following types:"
+    echo "> builder"
+    echo "> pod"
+    echo
+    echo "Usage for command 'build'':"
+  fi
+
+  echo "  - To build the 'builder' reporting container image"
+  echo "    > ./jsrkube build builder"
+}
+
+function display_help_run {
+
+  if [ $1 -eq 1 ]; then
+    echo "The 'build' command accepts the following types:"
+    echo "> builder"
+    echo "> pod"
+    echo
+    echo "Usage for command 'build'':"
+  fi
+
+  echo "  - To build the 'builder' reporting container image"
+  echo "    > ./jsrkube build builder"
+}
+
+function display_help_stop {
+
+  if [ $1 -eq 1 ]; then
+    echo "The 'build' command accepts the following types:"
+    echo "> builder"
+    echo "> pod"
+    echo
+    echo "Usage for command 'build'':"
+  fi
+
+  echo "  - To build the 'builder' reporting container image"
+  echo "    > ./jsrkube build builder"
+}
+
+function display_help_clean {
+
+  if [ $1 -eq 1 ]; then
+    echo "The 'build' command accepts the following types:"
+    echo "> builder"
+    echo "> pod"
+    echo
+    echo "Usage for command 'build'':"
+  fi
+
+  echo "  - To build the 'builder' reporting container image"
+  echo "    > ./jsrkube build builder"
+}
+
+# === BUILD ===================================================
+
+function changeDirPush {
+  pushd "./os/ubuntu"
+}
+
+function changeDirPop {
+  popd
+}
+
+function execute_build_base {
+  pushd "base"
+  ./buildImage.sh
+  popd
+  pushd "node"
+  ./buildImage.sh
+  popd
+}
+
+function execute_build_builder {
+  pushd "ReportBuilder"
+  ./buildImage.sh
+  popd
+}
+
+function execute_build_pod {
+  pushd "ReportPod"
+  ./buildImage.sh
+  popd
+}
+
+# === RUN ===================================================
+
+function execute_run_pod {
+  docker run -d -p 80:5488 jsrpod
+}
+
+function execute_run_builder {
+  pushd $TARGET
+  pwd=$(pwd)
+  docker run -d -p 80:5488 -v $pwd:/jsreport jsrbuilder
+  popd
+}
+
+function run_run {
+  if [ -n "$obj" ]; then
+    case "$obj" in
+      pod)
+        execute_run_pod
+        ;;
+      builder)
+        execute_run_builder
+        ;;
+      *)
+        echo "Error: cannot run "$obj
+        exit 1
+    esac
+  else
+    exit 0
+  fi
+}
+
+# === COMMANDS ================================================================
+
+function run_build {
+  if [ -n "$help" ]; then
+    display_help_build 1
+    exit 0
+  fi
+
+  if [ -n "$obj" ]; then
+    case "$obj" in
+      pod)
+        changeDirPush
+        execute_build_pod
+        changeDirPop
+        ;;
+      builder)
+        changeDirPush
+        execute_build_builder
+        changeDirPop
+        ;;
+      *)
+        echo "Error: cannot build object "$obj
+        exit 1
+    esac
+  else
+    changeDirPush
+    execute_build_base
+    execute_build_builder
+    execute_build_pod
+    changeDirPop
+    exit 0
+  fi
+}
+
+# === COMMAND LINE HANDLERS ===================================================
+
+function execute_command {
+  display_header
+
+  if [ -z "$cmd" ]; then
+    display_usage
+  else
+    #echo "Executing Command -> "$cmd
+    #echo "Executing Object -> "$obj
+    #echo "Executing Option -> "$opt
+
+    case "$cmd" in
+      build)
+        run_build
+        ;;
+      run)
+        run_run
+        ;;
+      clean)
+        run_clean
+        ;;
+      stop)
+        run_stop
+        ;;
+      info)
+        run_info
+        ;;
+      *)
+        echo "Unsupported command: "$cmd
+      exit 1
+    esac
+  fi
+}
+
+function handle_option {
+  if [ -z "$cmd" ]; then
+    cmd=$1
+  elif [ -z "$obj" ]; then
+    obj=$1
+  elif [ -z "$opt" ]; then
+    opt=$1
+  fi
+}
+
+#=== MAIN PROCESS =============================================================
+
+# Process command line
+while :
+do
+    case "$1" in
+      -h | --help)
+	    help="help"
+        shift 1
+	    ;;
+      --) # End of all options
+	    shift
+	    break;
+        ;;
+      -*)
+	    echo "Error: Unknown option: $1" >&2
+	    exit 1
+	    ;;
+      *)  # No more options
+        if [ -z "$1" ]; then
+          break;
+        fi
+        handle_option $1
+        shift 1
+	    ;;
+    esac
+done
+
+execute_command
